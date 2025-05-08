@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2006-Present, Redis Ltd.
+ * All rights reserved.
+ *
+ * Licensed under your choice of the Redis Source Available License 2.0
+ * (RSALv2); or (b) the Server Side Public License v1 (SSPLv1); or (c) the
+ * GNU Affero General Public License v3 (AGPLv3).
+*/
+
 //! Trie operations.
 use super::Node;
 use crate::utils::{longest_common_prefix, memchr_c_char, strip_prefix};
@@ -173,6 +182,38 @@ impl<Data> Node<Data> {
                 return current.data();
             };
             current = current.child_starting_with(*first_byte)?;
+        }
+    }
+
+    /// Find the root of the subtree associated with a the given prefix—i.e. the root of the subtree
+    /// containing all keys that start with the given prefix.
+    ///
+    /// Returns `None` if there is no such subtree—i.e. none of the keys stored in the trie
+    /// start with the given prefix.
+    /// If there is a subtree, it also returns the concatenated labels for the path from
+    /// the root to the subtree root.
+    pub fn find_root_for_prefix(&self, mut key: &[c_char]) -> Option<(&Node<Data>, Vec<c_char>)> {
+        let mut current = self;
+        let mut prefix = Vec::new();
+        loop {
+            if key.len() <= current.label_len() as usize {
+                // The key must be a prefix of the current label, otherwise there
+                // is no entry with the desired prefix.
+                let is_prefix = strip_prefix(current.label(), key).is_some();
+                return is_prefix.then_some((current, prefix));
+            } else {
+                // If the key is longer than the current label, the node we are looking for
+                // must be a child of the current node.
+                let label = current.label();
+                // But, first and foremost, we must ensure that the label of the current node
+                // is a prefix of the key, otherwise there is no entry with the desired prefix.
+                key = strip_prefix(key, label)?;
+                prefix.extend_from_slice(label);
+                // We know that the key has at least one byte left after stripping the label,
+                // since it is strictly longer than the label.
+                current = current.child_starting_with(key[0])?;
+                continue;
+            }
         }
     }
 

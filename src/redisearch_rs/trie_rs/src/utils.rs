@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2006-Present, Redis Ltd.
+ * All rights reserved.
+ *
+ * Licensed under your choice of the Redis Source Available License 2.0
+ * (RSALv2); or (b) the Server Side Public License v1 (SSPLv1); or (c) the
+ * GNU Affero General Public License v3 (AGPLv3).
+*/
+
 use std::ffi::c_char;
 
 /// Returns the index of the first occurrence of `target` in `slice`, or `None` if not found.
@@ -19,6 +28,8 @@ pub(crate) fn strip_prefix<'a>(haystack: &'a [c_char], prefix: &[c_char]) -> Opt
 #[inline(always)]
 /// Returns the length of the longest common prefix between `a` and `b`, along with the ordering of the first element
 /// that differs between `a` and `b`.
+///
+/// It returns `None` if either slice is a prefix of the other.
 pub(crate) fn longest_common_prefix(
     a: &[c_char],
     b: &[c_char],
