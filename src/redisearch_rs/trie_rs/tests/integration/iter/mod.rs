@@ -7,11 +7,14 @@
  * GNU Affero General Public License v3 (AGPLv3).
 */
 
+mod contains;
 mod filter;
 mod prefixed;
 mod prefixes;
+mod range;
 mod unfiltered;
 mod values;
+mod wildcard;
 
 use trie_rs::TrieMap;
 

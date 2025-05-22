@@ -85,6 +85,8 @@ configPair_t __configPairs[] = {
   {"WORKER_THREADS",                  ""},
   {"ENABLE_UNSTABLE_FEATURES",        "search-enable-unstable-features"},
   {"BM25STD_TANH_FACTOR",             "search-bm25std-tanh-factor"},
+  {"_BG_INDEX_OOM_PAUSE_TIME",         "search-_bg-index-oom-pause-time"},
+  {"INDEXER_YIELD_EVERY_OPS",         "search-indexer-yield-every-ops"},
 };
 
 static const char* FTConfigNameToConfigName(const char *name) {
@@ -464,6 +466,19 @@ CONFIG_SETTER(setBM25StdTanhFactor) {
 CONFIG_GETTER(getBM25StdTanhFactor) {
   sds ss = sdsempty();
   return sdscatprintf(ss, "%lu", config->requestConfigParams.BM25STD_TanhFactor);
+}
+
+CONFIG_SETTER(setBgOOMpauseTimeForRetry) {
+  uint32_t newPauseTime;
+  int acrc = AC_GetU32(ac, &newPauseTime, AC_F_GE0);
+  CHECK_RETURN_PARSE_ERROR(acrc);
+  config->bgIndexingOomPauseTimeBeforeRetry = newPauseTime;
+  return REDISMODULE_OK;
+}
+
+CONFIG_GETTER(getBgOOMpauseTimeForRetry) {
+  sds ss = sdsempty();
+  return sdscatprintf(ss, "%u", config->bgIndexingOomPauseTimeBeforeRetry);
 }
 
 /************************************ DEPRECATION CANDIDATES *************************************/
@@ -942,6 +957,19 @@ CONFIG_GETTER(getIndexCursorLimit) {
 CONFIG_BOOLEAN_SETTER(set_EnableUnstableFeatures, enableUnstableFeatures)
 CONFIG_BOOLEAN_GETTER(get_EnableUnstableFeatures, enableUnstableFeatures, 0)
 
+// INDEXER_YIELD_EVERY_OPS
+CONFIG_SETTER(setIndexerYieldEveryOps) {
+  unsigned int yieldEveryOps;
+  int acrc = AC_GetUnsigned(ac, &yieldEveryOps, AC_F_GE1);
+  config->indexerYieldEveryOpsWhileLoading = yieldEveryOps;
+  RETURN_STATUS(acrc);
+}
+
+CONFIG_GETTER(getIndexerYieldEveryOps) {
+  sds ss = sdsempty();
+  return sdscatprintf(ss, "%u", config->indexerYieldEveryOpsWhileLoading);
+}
+
 RSConfig RSGlobalConfig = RS_DEFAULT_CONFIG;
 
 static RSConfigVar *findConfigVar(const RSConfigOptions *config, const char *name) {
@@ -1250,8 +1278,7 @@ RSConfigOptions RSGlobalConfigOptions = {
          .setValue = set_EnableUnstableFeatures,
          .getValue = get_EnableUnstableFeatures},
         {.name = "_BG_INDEX_MEM_PCT_THR",
-         .helpText = "Set the percentage of memory usage threshold (out of maxmemory) at which background indexing will stop. Once this limit is reached,"
-                      " any queries on the affected index will result in an error. The default is 100 percent.",
+         .helpText = "Set the percentage of memory usage threshold (out of maxmemory) at which background indexing will stop. The default is 100 percent.",
          .setValue = setIndexingMemoryLimit,
          .getValue = getIndexingMemoryLimit},
         {.name = "BM25STD_TANH_FACTOR",
@@ -1260,6 +1287,16 @@ RSConfigOptions RSGlobalConfigOptions = {
                       "The default value is 4.",
           .setValue = setBM25StdTanhFactor,
           .getValue = getBM25StdTanhFactor},
+          // replace time with ms/sec
+          {.name = "_BG_INDEX_OOM_PAUSE_TIME",
+            .helpText = "Set the time (in seconds) given to the background indexing thread to sleep when it reaches the memory limit, giving time to reallocate memory."
+                        "The default value is 5 seconds in Redis Enterprise, 0 in Redis OS.",
+            .setValue = setBgOOMpauseTimeForRetry,
+            .getValue = getBgOOMpauseTimeForRetry},
+        {.name = "INDEXER_YIELD_EVERY_OPS",
+         .helpText = "The number of operations to perform before yielding to Redis during indexing while loading",
+         .setValue = setIndexerYieldEveryOps,
+         .getValue = getIndexerYieldEveryOps},
         {.name = NULL}}};
 
 void RSConfigOptions_AddConfigs(RSConfigOptions *src, RSConfigOptions *dst) {
@@ -1733,6 +1770,25 @@ int RegisterModuleConfig(RedisModuleCtx *ctx) {
     )
   )
 
+  RM_TRY(
+    RedisModule_RegisterNumericConfig(
+      ctx, "search-_bg-index-oom-pause-time",
+      IsEnterprise() ? DEFAULT_BG_OOM_PAUSE_TIME_BEFOR_RETRY : 0,
+      REDISMODULE_CONFIG_DEFAULT | REDISMODULE_CONFIG_UNPREFIXED, 0,
+      UINT32_MAX, get_uint_numeric_config, set_uint_numeric_config, NULL,
+      (void *)&(RSGlobalConfig.bgIndexingOomPauseTimeBeforeRetry)
+    )
+  )
+
+  RM_TRY(
+    RedisModule_RegisterNumericConfig(
+      ctx, "search-indexer-yield-every-ops", DEFAULT_INDEXER_YIELD_EVERY_OPS,
+      REDISMODULE_CONFIG_UNPREFIXED, 1,
+      UINT32_MAX, get_uint_numeric_config, set_uint_numeric_config, NULL,
+      (void *)&(RSGlobalConfig.indexerYieldEveryOpsWhileLoading)
+    )
+  )
+  
   // String parameters
   RM_TRY(
     RedisModule_RegisterStringConfig(
