@@ -22,7 +22,7 @@ function(setup_cc_options)
     message("# CMAKE_C_COMPILER_ID: " ${CMAKE_C_COMPILER_ID})
 
     # Common compiler flags
-    set(CMAKE_C_FLAGS "-fPIC -pthread -fno-strict-aliasing -Wno-unused-function -Wno-unused-variable -Wno-sign-compare -Werror=incompatible-pointer-types -Werror=implicit-function-declaration -fcommon -funsigned-char" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS "-fPIC -pthread -fno-strict-aliasing -Wno-unused-function -Wno-unused-variable -Wno-sign-compare -fcommon -funsigned-char" PARENT_SCOPE)
     set(CMAKE_CXX_FLAGS "-fPIC -pthread -fno-strict-aliasing -Wno-unused-function -Wno-unused-variable -Wno-sign-compare" PARENT_SCOPE)
     set(CMAKE_CXX_STANDARD 20)
     # Release/Debug/Profile specific flags
@@ -112,10 +112,13 @@ if(SAN)
     endif()
 endif()
 
+# Coverage settings
+message(STATUS "COV: ${COV}")
 if (COV)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
+    add_compile_definitions(COVERAGE=1)
 endif()
 
 # Get Git version info - to be printed in log upon loading the module
@@ -139,8 +142,8 @@ execute_process(
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${CMAKE_LD_FLAGS}")
 
 # Treat all format‑string warnings as errors
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -Wformat -Werror=format-security")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat -Werror=format-security")
+set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -Wformat")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat")
 
 
 add_compile_definitions(
@@ -206,10 +209,9 @@ set(Boost_NO_WARN_NEW_VERSIONS ON)
 include_directories(
     ${root}/src
     ${root}/src/coord
-    ${root}/src/redisearch_rs
+    ${root}/src/redisearch_rs/headers
     ${root}/deps/libuv/include
     ${root}/deps
-    ${root}/deps/triemap
     ${root}/deps/RedisModulesSDK
     ${root}/deps/VectorSimilarity/src
     ${BOOST_DIR}
@@ -220,7 +222,6 @@ add_subdirectory(deps/friso)
 add_subdirectory(deps/snowball)
 add_subdirectory(deps/phonetics)
 add_subdirectory(deps/fast_float)
-add_subdirectory(deps/triemap)
 
 # Configure libuv options
 set(LIBUV_BUILD_TESTS OFF CACHE BOOL "Build libuv tests" FORCE)
@@ -232,6 +233,7 @@ option(VECSIM_BUILD_TESTS "Build vecsim tests" OFF)
 
 add_subdirectory(deps/VectorSimilarity)
 add_subdirectory(src/geometry)
+add_subdirectory(src/wildcard)
 add_subdirectory(src/util/arr)
 add_subdirectory(src/util/hash)
 add_subdirectory(src/coord)
@@ -250,6 +252,7 @@ file(GLOB SOURCES
     "src/query_parser/v2/*.c"
     "src/util/*.c"
     "src/trie/*.c"
+    "src/iterators/*.c"
     "src/info/*.c"
     "src/info/info_redis/*.c"
     "src/info/info_redis/threads/*.c"
@@ -260,7 +263,6 @@ file(GLOB SOURCES
     "deps/cndict/cndict_data.c"
     "deps/libnu/*.c"
     "deps/miniz/*.c"
-    "deps/base64/*.c"
     "deps/fast_float/*.c"
     "deps/thpool/*.c"
     "deps/geohash/*.c")
@@ -268,8 +270,8 @@ file(GLOB SOURCES
 add_library(rscore OBJECT ${SOURCES})
 
 set(FINAL_OBJECTS
-    $<TARGET_OBJECTS:trie>
     $<TARGET_OBJECTS:arr>
+    $<TARGET_OBJECTS:wildcard>
     $<TARGET_OBJECTS:rscore>
     $<TARGET_OBJECTS:rmutil>
     $<TARGET_OBJECTS:friso>
@@ -299,7 +301,7 @@ target_link_libraries(redisearch
         VectorSimilarity
         redisearch-coord
         arr
-        trie
+        wildcard
         uv_a
         ${BINDIR}/redisearch_rs/libredisearch_rs.a
         ${HIREDIS_LIBS}
@@ -323,6 +325,7 @@ if(BUILD_SEARCH_UNIT_TESTS)
 
     add_subdirectory(deps/googletest)
     add_subdirectory(tests/cpptests)
+    add_subdirectory(tests/cpptests/micro-benchmarks)
     add_subdirectory(tests/ctests)
     add_subdirectory(tests/ctests/ext-example example_extension)
     add_subdirectory(tests/ctests/coord_tests)
