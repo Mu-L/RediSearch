@@ -2315,8 +2315,6 @@ class TestCoordinatorReducePause:
         # Set pause before first result (N=1 means pause before 1st result)
         setPauseBeforeReduce(env, 1)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         t_query = threading.Thread(
             target=run_cmd_expect_timeout,
             args=(env, ['FT.SEARCH', 'idx', '*']),
@@ -2330,7 +2328,7 @@ class TestCoordinatorReducePause:
             'Timeout while waiting for coordinator to pause during reduce'
         )
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         # Trigger timeout - the pause loop in the reducer will detect the timeout
         # and auto-break to avoid deadlock with timeout callback
@@ -2369,8 +2367,6 @@ class TestCoordinatorReducePause:
         # Set pause after last result
         setPauseBeforeReduce(env, PAUSE_AFTER_LAST_RESULT)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         t_query = threading.Thread(
             target=run_cmd_expect_timeout,
             args=(env, ['FT.SEARCH', 'idx', '*']),
@@ -2379,7 +2375,7 @@ class TestCoordinatorReducePause:
         t_query.start()
 
         # First wait for client to be blocked (query is being processed)
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         # Then wait for coordinator to be paused (after all results are reduced)
         wait_for_condition(
@@ -2425,8 +2421,6 @@ class TestCoordinatorReducePause:
 
         setPauseBeforeReduce(env, 1)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         query_result = []
 
         t_query = threading.Thread(
@@ -2441,7 +2435,7 @@ class TestCoordinatorReducePause:
             'Timeout while waiting for coordinator to pause during reduce'
         )
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         env.expect('CLIENT', 'UNBLOCK', blocked_client_id, 'TIMEOUT').equal(1)
 
@@ -2480,8 +2474,6 @@ class TestCoordinatorReducePause:
         # will wait for it, then force the reducer to take the timed-out early exit.
         setPauseBeforeReduce(env, PAUSE_BEFORE_REDUCER_INIT)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         query_result = []
 
         t_query = threading.Thread(
@@ -2496,7 +2488,7 @@ class TestCoordinatorReducePause:
             'Timeout while waiting for coordinator to pause before reducer ctx init'
         )
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         env.expect('CLIENT', 'UNBLOCK', blocked_client_id, 'TIMEOUT').equal(1)
 
@@ -2532,8 +2524,6 @@ class TestCoordinatorReducePause:
         pause_before_n = 2
         setPauseBeforeReduce(env, pause_before_n)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         query_result = []
 
         t_query = threading.Thread(
@@ -2552,7 +2542,7 @@ class TestCoordinatorReducePause:
         env.assertEqual(reduce_count, pause_before_n - 1,
                         message=f"Expected {pause_before_n - 1} results reduced before pause")
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         env.expect('CLIENT', 'UNBLOCK', blocked_client_id, 'TIMEOUT').equal(1)
 
@@ -2596,8 +2586,6 @@ class TestCoordinatorReducePause:
 
         setPauseBeforeReduce(env, PAUSE_AFTER_LAST_RESULT)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         query_result = []
 
         t_query = threading.Thread(
@@ -2607,7 +2595,7 @@ class TestCoordinatorReducePause:
         )
         t_query.start()
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.SEARCH')
 
         wait_for_condition(
             lambda: (getIsCoordReducePaused(env) == 1, {'paused': getIsCoordReducePaused(env)}),
@@ -2639,7 +2627,6 @@ class TestCoordinatorReducePause:
         env.expect('CONFIG', 'SET', ON_TIMEOUT_CONFIG, prev_on_timeout_policy).ok()
         self._cleanup_pause_state()
 
-    @skip_until("2026-05-05", reason="Flaky test, see MOD-15123")
     def test_timeout_return_strict_with_profile(self):
         """Test return-strict timeout policy with FT.PROFILE command.
 
@@ -2658,8 +2645,6 @@ class TestCoordinatorReducePause:
 
         setPauseBeforeReduce(env, 2)
 
-        blocked_client_id = env.cmd('CLIENT', 'ID')
-
         query_result = []
 
         t_query = threading.Thread(
@@ -2674,7 +2659,7 @@ class TestCoordinatorReducePause:
             'Timeout while waiting for coordinator to pause during reduce'
         )
 
-        wait_for_client_blocked(env, blocked_client_id)
+        blocked_client_id = wait_for_blocked_query_client(env, 'FT.PROFILE')
 
         env.expect('CLIENT', 'UNBLOCK', blocked_client_id, 'TIMEOUT').equal(1)
 
